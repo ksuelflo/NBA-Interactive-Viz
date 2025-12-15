@@ -530,16 +530,16 @@ function createHashes(svg){
   defs.append("pattern")
     .attr("id", "diagonal-hatch")
     .attr("patternUnits", "userSpaceOnUse")
-    .attr("width", 6)
-    .attr("height", 6)
+    .attr("width", 12)
+    .attr("height", 12)
     .attr("patternTransform", "rotate(45)")
     .append("line")
     .attr("x1", 0)
     .attr("y1", 0)
     .attr("x2", 0)
-    .attr("y2", 6)
-    .attr("stroke", "#999")
-    .attr("stroke-width", 2);
+    .attr("y2", 12)
+    .attr("stroke", "#000000")
+    .attr("stroke-width", 4);
 }
 createHashes(svg_left);
 createHashes(svg_right);
