@@ -1,6 +1,6 @@
 // Inport statements are in the HTML!
 
-const shots = await d3.csv("../data/shots_by_region_12_14.csv", d => ({
+const shots = await d3.csv("https://github.com/ksuelflo/NBA-Interactive-Viz/releases/download/v1.0.0/shots_by_region_12_14.csv", d => ({
   ...d,
   PLAYER_NAME: d.name.trim(),
   region: d.region.trim(),
