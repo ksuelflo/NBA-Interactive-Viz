@@ -1,0 +1,78 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NBA Shot Explorer</title>
+
+    <!-- The following line references an external css file -->
+    <link href="css/styles.css" rel="stylesheet">
+    <link href="css/navbar.css" rel="stylesheet">
+</head>
+<body>
+
+    <div class="topnav">
+        <a class="active" href="#home">NBA Shot Explorer</a>
+        <a href="attempts.html">FG Attempts Heat Map</a>
+        <a href="#contact">Leaders</a>
+    </div>
+
+    <!-- Load external JS files -->
+    <!-- <script type="module" src="./js/main.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
+    <script type="module" src="./js/main.js"></script>
+
+    <div class="title-box">
+        <h2 class="chart-title">NBA Shot Efficiency by Region</h2>
+        <p class="chart-subtitle">
+            Field goal percentage by court region · % difference from league average
+        </p>
+    </div>
+
+    <!-- LEFT PLAYER SUBTITLE -->
+    <div class="player-subtitle left-player">
+        <img class="player-headshot" />
+        <span class="player-name">League Average</span>
+    </div>
+
+    <!-- RIGHT PLAYER SUBTITLE -->
+    <div class="player-subtitle right-player">
+        <img class="player-headshot" />
+        <span class="player-name">League Average</span>
+    </div>
+
+
+    <div id="left_chart">
+        <div class="Tooltip" id="left"> </div>
+    </div>
+    <div id="right_chart">
+        <div class="Tooltip" id="right"> </div>
+    </div>
+    <div id="legend"></div>
+    <div class="filters" id="left">
+        Player
+        <select class="filter-select" id="left-player-select"></select>
+        Quarter
+        <select class="filter-select" id="left-quarter-select"></select>
+        Team
+        <select class="filter-select" id="left-team-select"></select>
+        Season
+        <select class="filter-select" id="left-season-select"></select>
+        <button class="filter-button" id="left-filter-button" type="button">Apply Filters</button>
+        <button class="clear-button" id="left-clear-button" type="button">Clear Filters</button>
+    </div>
+    <div class="filters" id="right">
+        Player
+        <select class="filter-select" id="right-player-select"></select>
+        Quarter
+        <select class="filter-select" id="right-quarter-select"></select>
+        Team
+        <select class="filter-select" id="right-team-select"></select>
+        Season
+        <select class="filter-select" id="right-season-select"></select>
+        <button class="filter-button" id="right-filter-button" type="button">Apply Filters</button>
+        <button class="clear-button" id="right-clear-button" type="button">Clear Filters</button>
+    </div>
+
+</body>
+</html>
