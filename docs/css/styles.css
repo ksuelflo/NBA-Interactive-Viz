@@ -181,3 +181,50 @@ button:hover{
   white-space: nowrap;
 }
 
+.filter-select {
+  border: 1px solid #ccc;
+  border-bottom: none; /* input bottom removed */
+}
+.autocomplete-results {
+  border: 1px solid #ccc;
+  border-top: none; /* dropdown top removed */
+}
+
+.autocomplete {
+  position: relative;
+}
+
+/* dropdown container */
+.autocomplete-results {
+  position: absolute;
+  top: 100%; /* right below input */
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 0 0 8px 8px; /* only bottom corners */
+  border: 1px solid #ccc;
+  border-top: none; /* connect smoothly to input */
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none; /* hide by default */
+}
+
+.autocomplete-item:hover {
+  background: #eee;
+}
+
+
+
+/* individual result rows */
+.autocomplete-item {
+  padding: 6px 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* hover matches select feel */
+.autocomplete-item:hover {
+  background: rgba(0, 0, 0, 0.08);
+}

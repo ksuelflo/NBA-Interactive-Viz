@@ -1,12 +1,54 @@
 // Inport statements are in the HTML!
 
-const shots = await d3.csv("./data/shots_by_region_12_15.csv", d => ({
-  ...d,
-  PLAYER_NAME: d.name.trim(),
-  region: d.region.trim(),
-  TEAM_NAME: d.team_name.trim(),
-  period: d.period_number
-}));
+// const shots = await d3.csv("./data/shots_by_region_12_15.csv", d => ({
+//   ...d,
+//   PLAYER_NAME: d.name.trim(),
+//   region: d.region.trim(),
+//   TEAM_NAME: d.team_name.trim(),
+//   period: d.period_number
+// }));
+
+const API_BASE = "http://127.0.0.1:8000";
+
+async function fetchLeagueRegionStats(season) {
+  const res = await fetch(`${API_BASE}/league/regions?season=${season}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch league region stats");
+  }
+  return await res.json();
+}
+
+async function getLeagueRegionStats(season){
+  const data = await fetchLeagueRegionStats(season);
+  return (data);
+}
+
+
+async function fetchTeamRegionStats(season, team, period) {
+  const res = await fetch(`${API_BASE}/team/regions?season=${season}&periodr=${period}&team_name=${team}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch team averages by region");
+  }
+  return await res.json();
+}
+
+async function getTeamRegionStats(season, team, period){
+  const data = await fetchTeamRegionStats(season, team, period);
+  return (data);
+}
+
+async function fetchPlayerRegionStats(season, player, period) {
+  const res = await fetch(`${API_BASE}/player/regions?season=${season}&periodr=${period}&player_name=${player}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch team averages by region");
+  }
+  return await res.json();
+}
+
+async function getPlayerRegionStats(season, player, period){
+  const data = await fetchPlayerRegionStats(season, player, period);
+  return (data);
+}
 
 //Useful constants
 const width = 425;
@@ -21,285 +63,246 @@ var svg_left = d3.select("#left_chart")
     .attr("id", "left_svg")
     .attr("width", width+margin)
     .attr("height", height+margin+100)
-  // .append("g")
-  //   .attr("transform",
-  //         "translate(" + 230 + "," + margin + ")");
 
 var svg_right = d3.select("#right_chart")
   .append("svg")
     .attr("id", "right_svg")
     .attr("width", width + margin)
     .attr("height", height + margin+100)
-  // .append("g")
-  //   .attr("transform",
-  //         "translate(" + 230 + "," + margin + ")");
 
-// Computing League averages
-const average_fg_pct = function (data) {
-  const entries = d3.rollups(
-    data,
-    v => d3.mean(v, d => d.scoring_play === "TRUE"),
-    d => d.region
-  );
-
-  return Object.fromEntries(entries);
-};
-
-
-// Getting total FG attempts/ total FG makes.
-const get_fgs = function (data, type) {
-  const entries = d3.rollups(
-    data,
-    v => d3.sum(v, d => d[type] === "TRUE"),
-    d => d.region
-  );
-
-  return Object.fromEntries(entries);
-};
-
-//Computes league avg (only need to run this once!)
-const league_avg = average_fg_pct(shots)
-console.log(league_avg);
 // Color Scale
 const colorScale = d3.scaleDiverging()
   .domain([-0.15, 0, 0.15])
   .interpolator(d3.interpolatePRGn)
   // .interpolator(t => d3.interpolateRdBu(1 - t))
 
-// FILTERS
+// FILTER STUFF --------------------------------------------------
+async function fetchFilterUniverse(filters) {
+  const params = new URLSearchParams(filters);
+  const res = await fetch(`${API_BASE}/filters/universe?${params}`);
 
-//Filter Logic
-let selectedPlayer_left = "All";
-let selectedTeam_left = "All";
-let selectedPlayer_right = "All";
-let selectedTeam_right = "All";
-
-function getTeamsForPlayer(player) {
-  if (player === "All") {
-    return Array.from(new Set(shots.map(d => d.TEAM_NAME))).sort();
+  if (!res.ok) {
+    throw new Error("Failed to fetch filter universe");
   }
-
-  return Array.from(
-    new Set(
-      shots
-        .filter(d => d.PLAYER_NAME === player)
-        .map(d => d.TEAM_NAME)
-    )
-  ).sort();
+  console.log("hello");
+  return await res.json();
 }
 
-function getPlayersForTeam(team) {
-  if (team === "All") {
-    return Array.from(new Set(shots.map(d => d.PLAYER_NAME))).sort();
-  }
+function updateSelect(selector, values, selected) {
+  const sel = d3.select(selector);
 
-  return Array.from(
-    new Set(
-      shots
-        .filter(d => d.TEAM_NAME === team)
-        .map(d => d.PLAYER_NAME)
-    )
-  ).sort();
-}
+  const allValues = ["All", ...values.map(String).filter(d => d !== "All")];
 
-function updateSelect(selectId, values, selectedValue) {
-  const select = d3.select(selectId);
+  sel.selectAll("option").remove();
 
-  values = ["All", ...values];
-
-  const options = select
-    .selectAll("option")
-    .data(values, d => d);
-
-  options.exit().remove();
-
-  options
+  sel.selectAll("option")
+    .data(allValues)
     .enter()
     .append("option")
-    .merge(options)
     .attr("value", d => d)
-    .text(d => d)
-    .property("selected", d => d === selectedValue);
+    .text(d => d);
+
+  sel.property(
+    "value",
+    allValues.includes(String(selected)) ? String(selected) : "All"
+  );
 }
 
 
-// Player filter
-const players = Array.from(new Set(shots.map(d => d.PLAYER_NAME))).sort();
-players.unshift("All");
-const player_select_left = d3.select("#left-player-select")
-  .selectAll('myOptions')
-     	.data(players)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
+async function recomputeFilters(side, changedKey = null) {
+  const data = await fetchFilterUniverse(filters[side]);
+  playerUniverse[side] = data.players;
 
-const player_select_right = d3.select("#right-player-select")
-  .selectAll('myOptions')
-     	.data(players)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
-
-// Team filter
-const teams = Array.from(new Set(shots.map(d => d.TEAM_NAME))).sort();
-teams.unshift("All");
-const team_select_left = d3.select("#left-team-select")
-  .selectAll('myOptions')
-     	.data(teams)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
-
-const team_select_right = d3.select("#right-team-select")
-  .selectAll('myOptions')
-     	.data(teams)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
-
-// Opposing Team filter
-//....
-
-// Quarter filter
-const quarters = Array.from(new Set(shots.map(d => d.PERIOD))).sort();
-quarters.unshift("All");
-const quarter_select_left = d3.select("#left-quarter-select")
-  .selectAll('myOptions')
-     	.data(quarters)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
-
-const quarter_select_right = d3.select("#right-quarter-select")
-  .selectAll('myOptions')
-     	.data(quarters)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
-
-// Season filter
-const seasons = Array.from(new Set(shots.map(d => d.season))).sort();
-seasons.unshift("All");
-const season_select_left = d3.select("#left-season-select")
-  .selectAll('myOptions')
-     	.data(seasons)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
-
-const season_select_right = d3.select("#right-season-select")
-  .selectAll('myOptions')
-     	.data(seasons)
-      .enter()
-    	.append('option')
-      .text(function (d) { return d; }) // text showed in the menu
-      .attr("value", function (d) { return d; })
-
-updateSelect(
-  "#left-team-select",
-  getTeamsForPlayer("All"),
-  "All"
-);
-
-updateSelect(
-  "#left-player-select",
-  getPlayersForTeam("All"),
-  "All"
-);
-
-updateSelect(
-  "#right-team-select",
-  getTeamsForPlayer("All"),
-  "All"
-);
-
-updateSelect(
-  "#right-player-select",
-  getPlayersForTeam("All"),
-  "All"
-);
-
-function handleFilters(filters) {
-  let filtered = shots;
-
-  if (filters[0] !== "All") {
-    filtered = filtered.filter(d => d.PLAYER_NAME === filters[0]);
+  if (changedKey !== "season") {
+    updateSelect(`#${side}-season-select`, data.seasons, filters[side].season);
   }
 
-  if (filters[1] !== "All") {
-    filtered = filtered.filter(d => d.period === filters[1]);
+  if (changedKey !== "player") {
+    updateSelect(`#${side}-player-select`, data.players, filters[side].player);
   }
 
-  if (filters[2] !== "All") {
-    filtered = filtered.filter(d => d.TEAM_NAME === filters[2]);
+  if (changedKey !== "team") {
+    updateSelect(`#${side}-team-select`, data.teams, filters[side].team);
   }
 
-  if (filters[3] !== "All") {
-    filtered = filtered.filter(d => d.season === filters[3]);
+  if (changedKey !== "quarter") {
+    updateSelect(`#${side}-quarter-select`, data.quarters, filters[side].quarter);
   }
-
-  return filtered;
+  setupPlayerAutocomplete(side, data.players, filters);
 }
 
-// Refresh chart when new selection is made
-function update(selections, svg, tooltip, side) {
-  const filtered = handleFilters(selections);
-  const sel = d3.select(`.${side}-player`);
 
-  sel.select(".player-name")
-    .text(
-      filtered && filtered.length
-        ? filtered[0].PLAYER_NAME
-        : "League Average"
-    );
+function registerFilter(side, key) {
+  d3.select(`#${side}-${key}-select`)
+    .on("change", async function () {
+      filters[side][key] = this.value;
 
-      sel.select(".player-headshot")
-    .attr(
-      "src",
-      filtered && filtered.length
-        ? filtered[0].image
-        : "photos/nba-logo.jpg"
-    );
+      await recomputeFilters(side, key);  // 👈 key exclusion
+      // await recomputeChart(side);
+    });
+}
+function matchesPlayer(player, query) {
+  if (!query) return true;
 
-  if (selections[0] == "All"){
-    if (selections[2] != "All"){
-        sel.select(".player-name")
-          .text(
-            filtered && filtered.length
-              ? filtered[0].TEAM_NAME
-              : "League Average"
-          );
-        sel.select(".player-headshot")
-          .attr("src", "photos/nba-logo.jpg")
-    }
-    else {
-      sel.select(".player-name").text("League Average")
-      sel.select(".player-headshot").attr("src", "photos/nba-logo.jpg")
-      console.log("Set league avg")
-    }
+  const q = query.toLowerCase();
+  const parts = player.toLowerCase().split(" ");
+
+  return parts.some(p => p.startsWith(q));
+}
+
+
+function setupPlayerAutocomplete(side, players, filters) {
+  const input = d3.select(`#${side}-player-input`);
+  const results = d3.select(`#${side}-player-results`);
+
+  // prevent multiple listeners
+  if (input.attr("data-autocomplete-initialized")) return;
+  input.attr("data-autocomplete-initialized", true);
+
+  // helper: match query to first or last name
+  function matchesPlayer(name, query) {
+    const lower = name.toLowerCase();
+    const q = query.toLowerCase();
+    return lower.startsWith(q) || lower.split(" ")[1]?.startsWith(q);
   }
 
-  const avg = average_fg_pct(filtered);
-  const attempts = get_fgs(filtered, "shooting_play");
-  const makes = get_fgs(filtered, "scoring_play");
-  const diff_data = Object.keys(league_avg).map(region => ({
-    spot: region,
-    makes: makes[region],
-    attempts: attempts[region],
-    league_pct: league_avg[region],
-    player_pct: avg[region],
-    diff_pct: avg[region] - league_avg[region]
-  }));
+  input.on("input", function() {
+    const query = this.value.trim();
+
+    if (!query) {
+      results.selectAll("*").remove();
+      results.style("display", "none");
+      return;
+    }
+
+    // filter players
+    const matches = players.filter(p => matchesPlayer(p, query)).slice(0, 15);
+
+    if (matches.length === 0) {
+      results.selectAll("*").remove();
+      results.style("display", "none");
+      return;
+    }
+
+    results.style("display", "block");
+
+    // bind data
+    const items = results.selectAll(".autocomplete-item")
+      .data(matches, d => d);
+
+    items.exit().remove();
+
+    const itemsEnter = items.enter()
+      .append("div")
+      .attr("class", "autocomplete-item")
+      .style("padding", "6px 10px")
+      .style("cursor", "pointer")
+      .style("border-bottom", "1px solid rgba(0,0,0,0.1)")
+      .on("mouseover", function() { d3.select(this).style("background", "#eee"); })
+      .on("mouseout", function() { d3.select(this).style("background", "transparent"); });
+
+    // merge enter + update and attach click
+    itemsEnter.merge(items)
+      .text(d => d)
+      .on("mousedown", function(event, d) {
+        event.preventDefault(); // prevents focus loss race
+        input.property("value", d);
+        filters[side].player = d;
+        results.selectAll("*").remove();
+        results.style("display", "none");
+        recomputeFilters(side);
+    });
+  });
+  // hide results on blur
+  input.on("blur", () => {
+    setTimeout(() => results.selectAll("*").remove(), 150);
+    results.style("display", "none");
+  });
+}
+
+
+// function setupPlayerAutocomplete(side, players, filters) {
+//   const input = d3.select(`#${side}-player-input`);
+//   const results = d3.select(`#${side}-player-results`);
+//   input.on("input", function () {
+//     const query = this.value;
+//     const matches = players
+//       .filter(p => matchesPlayer(p, query))
+//       .slice(0, 15); // limit results
+
+//     results.selectAll(".autocomplete-item").remove();
+
+//   results
+//     .selectAll(".autocomplete-item")
+//     .data(matches)
+//     .enter()
+//     .append("div")
+//     .attr("class", "autocomplete-item")
+//     .text(d => d)
+//     .on("click", function(event, d) {
+//       input.property("value", d);
+//       filters[side].player = d;
+//       results.selectAll("*").remove();
+//       recomputeFilters(side);
+//     });
+//   });
+
+//   // hide on blur
+//   input.on("blur", () => {
+//     setTimeout(() => results.selectAll("*").remove(), 150);
+//   });
+// }
+
+
+
+
+// --------------------------------------------------
+
+function indexPlayerByRegion(playerData) {
+  return Object.fromEntries(
+    playerData.map(d => [d.region, d])
+  );
+}
+
+function mergeLeagueAndPlayer(leagueData, playerData) {
+  const playerByRegion = indexPlayerByRegion(playerData);
+
+  return leagueData.map(leagueRow => {
+    const playerRow = playerByRegion[leagueRow.region];
+
+    const attempts = playerRow?.attempts ?? 0;
+    const makes = playerRow?.makes ?? 0;
+    const player_pct =
+      attempts > 0 ? playerRow.fg_pct : "NA";
+
+    return {
+      region: leagueRow.region,
+      attempts,
+      makes,
+      league_pct: leagueRow.fg_pct,
+      player_pct,
+      diff_pct:
+        player_pct !== "NA"
+          ? player_pct - leagueRow.fg_pct
+          : "NA"
+    };
+  });
+}
+
+async function update(selections, svg, tooltip){
+  console.log(selections.season);
+  const league_avg = await getLeagueRegionStats(selections.season);
+  let data;
+  if (selections.player == "All"){
+    data = await getTeamRegionStats(selections.season, selections.team, selections.quarter);
+  }
+  else{
+    data = await getPlayerRegionStats(selections.season, selections.player, selections.quarter);
+  }
+  const merged = mergeLeagueAndPlayer(league_avg, data);
   // Update colors.
-  console.log(diff_data);
-  applyRegionData(diff_data, svg, tooltip);
+  // console.log(merged);
+  applyRegionData(merged, svg, tooltip);
 }
 
 // Functions!
@@ -596,7 +599,7 @@ function applyRegionData(data, svg, tooltip) {
   svg.selectAll(".region").each(function() {
     
     const regionName = d3.select(this).attr("data-region");
-    const row = data.find(d => d.spot === regionName);
+    const row = data.find(d => d.region === regionName);
     // update fill
     d3.select(this).style("fill", checkNanColor(row))
     // d3.select(this).attr("fill", row ? colorScale(row.diff_pct) : "");
@@ -646,160 +649,142 @@ var svgLegend = d3.select("#legend")
 
 drawLegend(svgLegend);
 
-d3.select("#left-player-select")
-  .on("change", function () {
-    selectedPlayer_left = this.value;
-
-    const validTeams = getTeamsForPlayer(selectedPlayer_left);
-
-    // AUTO-SELECT if only one valid team
-    if (validTeams.length === 1) {
-      selectedTeam_left = validTeams[0];
-    } else if (!validTeams.includes(selectedTeam_left)) {
-      selectedTeam_left = "All";
-    }
-
-    updateSelect(
-      "#left-team-select",
-      validTeams,
-      selectedTeam_left
-    );
-  });
-
-d3.select("#left-team-select")
-  .on("change", function () {
-    selectedTeam_left = this.value;
-
-    const validPlayers = getPlayersForTeam(selectedTeam_left);
-
-    if (selectedPlayer_left !== "All" && !validPlayers.includes(selectedPlayer_left)) {
-      selectedPlayer_left = "All";
-    }
-
-    updateSelect(
-      "#left-player-select",
-      validPlayers,
-      selectedPlayer_left
-    );
-
-  });
-
-  d3.select("#right-player-select")
-  .on("change", function () {
-    selectedPlayer_right = this.value;
-
-    const validTeams = getTeamsForPlayer(selectedPlayer_right);
-
-    // AUTO-SELECT if only one valid team
-    if (validTeams.length === 1) {
-      selectedTeam_right = validTeams[0];
-    } else if (!validTeams.includes(selectedTeam_right)) {
-      selectedTeam_right = "All";
-    }
-
-    updateSelect(
-      "#right-team-select",
-      validTeams,
-      selectedTeam_right
-    );
-  });
-
-d3.select("#right-team-select")
-  .on("change", function () {
-    selectedTeam_right = this.value;
-
-    const validPlayers = getPlayersForTeam(selectedTeam_right);
-
-    if (selectedPlayer_right !== "All" && !validPlayers.includes(selectedPlayer_right)) {
-      selectedPlayer_right = "All";
-    }
-
-    updateSelect(
-      "#right-player-select",
-      validPlayers,
-      selectedPlayer_right
-    );
-
-  });
-
-
 d3.select("#left-filter-button").on("click", function(event, d) {
-  var selectedPlayer = d3.select("#left-player-select").property("value")
+  var selectedPlayer = d3.select("#left-player-input").property("value")
   var selectedTeam = d3.select("#left-team-select").property("value")
   var selectedQuarter = d3.select("#left-quarter-select").property("value")
   var selectedSeason = d3.select("#left-season-select").property("value")
-  var selections = [selectedPlayer, selectedQuarter, selectedTeam, selectedSeason];
+  var selections = {
+    season: selectedSeason,
+    player: selectedPlayer,
+    team: selectedTeam,
+    quarter: selectedQuarter
+  }
   update(selections, svg_left, tooltipLeft, "left");
 })
 
 d3.select("#right-filter-button").on("click", function(event, d) {
-  var selectedPlayer = d3.select("#right-player-select").property("value")
+  var selectedPlayer = d3.select("#right-player-input").property("value")
   var selectedTeam = d3.select("#right-team-select").property("value")
   var selectedQuarter = d3.select("#right-quarter-select").property("value")
   var selectedSeason = d3.select("#right-season-select").property("value")
-  var selections = [selectedPlayer, selectedQuarter, selectedTeam, selectedSeason];
+  var selections = {
+    season: selectedSeason,
+    player: selectedPlayer,
+    team: selectedTeam,
+    quarter: selectedQuarter
+  }
   update(selections, svg_right, tooltipRight, "right");
 })
 
-d3.select("#left-clear-button").on("click", function () {
+// d3.select("#left-clear-button").on("click", function () {
 
-  // 1. Reset internal state
-  selectedPlayer_left = "All";
-  selectedTeam_left = "All";
+//   // // 1. Reset internal state
+//   // selectedPlayer_left = "All";
+//   // selectedTeam_left = "All";
 
-  // 2. Reset dropdowns (options + selection)
-  updateSelect(
-    "#left-player-select",
-    getPlayersForTeam("All"),
-    "All"
-  );
+//   // 2. Reset dropdowns (options + selection)
+//   updateSelect(
+//     "#left-player-select",
+//     getPlayersForTeam("All"),
+//     "All"
+//   );
 
-  updateSelect(
-    "#left-team-select",
-    getTeamsForPlayer("All"),
-    "All"
-  );
+//   updateSelect(
+//     "#left-team-select",
+//     getTeamsForPlayer("All"),
+//     "All"
+//   );
 
-  d3.select("#left-quarter-select")
-    .property("value", "All");
-  d3.select("#left-season-select")
-    .property("value", "All");
-  // 3. Clear the chart
-  d3.select("#left_svg")
-    .selectAll(".region")
-    .style("fill", "#FFFFFF")
-    .style("fill-opacity", 0.8);
-  updatePlayerSubtitle("left", null);
+//   d3.select("#left-quarter-select")
+//     .property("value", "All");
+//   d3.select("#left-season-select")
+//     .property("value", "All");
+//   // 3. Clear the chart
+//   d3.select("#left_svg")
+//     .selectAll(".region")
+//     .style("fill", "#FFFFFF")
+//     .style("fill-opacity", 0.8);
+//   updatePlayerSubtitle("left", null);
+// });
+function clearChart(svg){
+  // 1. Force-hide tooltip
+  hideTooltip(svg.select(".Tooltip"));
+
+  // 2. Remove all region interaction handlers
+    svg
+      .selectAll(".region")
+      .style("fill", "#FFFFFF")
+      .style("fill-opacity", 0.8)
+      .on("mouseover", null)
+      .on("mousemove", null)
+      .on("mouseleave", null);
+
+}
+
+function hideTooltip(tooltip) {
+  tooltip
+    .style("opacity", 0)
+    .style("pointer-events", "none")
+    .html("");
+}
+
+d3.select("#left-clear-button").on("click", async () => {
+  const btn = d3.select("#left-clear-btn");
+  btn.property("disabled", true);
+
+  for (let key in filters.left) filters.left[key] = "All";
+
+  await recomputeFilters("left");
+  clearChart(svg_left);
+  btn.property("disabled", false);
+  d3.select("#left-player-input").property("value", "Search player...");
+  d3.select("#left-player-result").selectAll("*").remove();
 });
 
+d3.select("#right-clear-button").on("click", async () => {
+  const btn = d3.select("#left-clear-btn");
+  btn.property("disabled", true);
 
-d3.select("#right-clear-button").on("click", function () {
+  for (let key in filters.left) filters.left[key] = "All";
 
-  // 1. Reset internal state
-  selectedPlayer_right = "All";
-  selectedTeam_right = "All";
-
-  // 2. Reset dropdowns (options + selection)
-  updateSelect(
-    "#right-player-select",
-    getPlayersForTeam("All"),
-    "All"
-  );
-
-  updateSelect(
-    "#right-team-select",
-    getTeamsForPlayer("All"),
-    "All"
-  );
-
-  d3.select("#right-quarter-select")
-    .property("value", "All");
-  d3.select("#right-season-select")
-    .property("value", "All");
-  // 3. Clear the chart
-  d3.select("#right_svg")
-    .selectAll(".region")
-    .style("fill", "#FFFFFF")
-    .style("fill-opacity", 0.8);
-  updatePlayerSubtitle("right", null);
+  await recomputeFilters("left");
+  clearChart(svg_right);
+  btn.property("disabled", false);
+  d3.select("#right-player-input").property("value", "Search player...");
+  d3.select("#right-player-result").selectAll("*").remove();
 });
+
+const filters = {
+  left: {
+    season: "All",
+    player: "All",
+    team: "All",
+    quarter: "All"
+  },
+  right: {
+    season: "All",
+    player: "All",
+    team: "All",
+    quarter: "All"
+  }
+};
+
+let playerUniverse = {
+  left: [],
+  right: []
+};
+
+["left", "right"].forEach(side => {
+  ["season", "player", "team", "quarter"].forEach(key => {
+    registerFilter(side, key);
+  });
+});
+
+(async function init() {
+  await recomputeFilters("left");
+  await recomputeFilters("right");
+})();
+
+
+

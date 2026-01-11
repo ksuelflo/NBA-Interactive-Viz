@@ -51,7 +51,16 @@
     <div id="legend"></div>
     <div class="filters" id="left">
         Player
-        <select class="filter-select" id="left-player-select"></select>
+        <div class="autocomplete">
+            <input
+                id="left-player-input"
+                class="filter-select"
+                type="text"
+                placeholder="Search player..."
+                autocomplete="off"
+            />
+            <div id="left-player-results" class="autocomplete-results"></div>
+        </div>
         Quarter
         <select class="filter-select" id="left-quarter-select"></select>
         Team
@@ -63,7 +72,16 @@
     </div>
     <div class="filters" id="right">
         Player
-        <select class="filter-select" id="right-player-select"></select>
+        <div class="autocomplete">
+            <input
+                id="right-player-input"
+                class="filter-select"
+                type="text"
+                placeholder="Search player..."
+                autocomplete="off"
+            />
+            <div id="right-player-results" class="autocomplete-results"></div>
+        </div>
         Quarter
         <select class="filter-select" id="right-quarter-select"></select>
         Team
