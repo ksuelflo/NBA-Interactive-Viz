@@ -1,33 +1,58 @@
-/* Add a black background color to the top navigation */
-body {
-  margin: 0;
-  font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
-}
+.navbar {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  position: relative;
 
-.topnav {
-  background-color: black;
-  overflow: hidden;
-  width: 100vw;
-}
-
-/* Style the links inside the navigation bar */
-.topnav a {
-  float: left;
-  color: #f2f2f2;
-  text-align: center;
-  padding: 14px 16px;
-  text-decoration: none;
-  font-size: 30px;
-}
-
-/* Change the color of links on hover */
-.topnav a:hover {
-  background-color: #ddd;
-  color: black;
-}
-
-/* Add a color to the active/current link */
-.topnav a.active {
-  background-color: #C06243;
+  background: #0b0b0b;
   color: white;
+  border-bottom: 1px solid #222;
+}
+
+.nav-brand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: 0.03em;
+  color: white;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nav-links {
+  display: flex;
+  align-items: stretch;
+  padding: 0 1rem;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+
+  color: white;
+  text-decoration: none;
+  font-size: 2rem;
+  font-weight: 500;
+  padding: 0 0.9rem;
+
+  border-left: 1px solid #222;
+  transition: color 0.15s, background 0.15s;
+}
+
+.nav-link:last-child {
+  border-right: 1px solid #222;
+}
+
+.nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nav-link.active {
+  color: white;
+  background: rgba(255, 255, 255, 0.12);
 }

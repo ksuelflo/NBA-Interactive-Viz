@@ -6,48 +6,43 @@
 
     <!-- The following line references an external css file -->
     <link href="../css/navbar.css" rel="stylesheet">
-    <link href="../css/practice.css" rel="stylesheet">
+    <link href="../css/attempts2.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
-  <script type="module" src="../js/practice.js"></script>
+  <script type="module" src="../js/attempts2.js"></script>
   <div class="app">
 
     <nav class="navbar">
       <span class="nav-brand">NBA Shot Charts</span>
       <div class="nav-links">
-        <a href="Practice.html" class="nav-link active">Shot Chart</a>
-        <a href="attempts2.html" class="nav-link">Attempts</a>
+        <a href="Practice.html" class="nav-link">Shot Chart</a>
+        <a href="attempts2.html" class="nav-link active">Attempts</a>
       </div>
     </nav>
 
     <div class="dashboard">
 
       <div class="panel tooltip">
-        <div class="shot-tooltip" id="shot-tooltip">
-          <div class="tooltip-header">
-            <img id="tooltip-player-photo" />
-            <div>
-              <div class="tooltip-player" id="tooltip-player"></div>
-              <div class="tooltip-region" id="tooltip-region"></div>
-            </div>
+        <div class="similar-container">
+          <!-- Selected player hero -->
+          <div class="similar-hero">
+            <img id="similar-player-photo" src="" alt="" style="display:none;" />
+            <div class="similar-hero-name" id="similar-player-name">Select a player</div>
           </div>
-
-          <div class="tooltip-stats">
-            <div><span>FGM / FGA: </span><strong id="tooltip-fgm"></strong></div>
-            <div><span>FG%: </span><strong id="tooltip-fg"></strong></div>
-            <div><span>League Avg: </span><strong id="tooltip-league"></strong></div>
-            <div><span>Pos Group Avg: </span><strong id="tooltip-position"></strong></div>
-          </div>
+          <!-- Divider + label -->
+          <div class="similar-label">Most Similar Shooters</div>
+          <!-- Similar players row -->
+          <div class="similar-players-row" id="similar-players-row"></div>
         </div>
       </div>
       <div class="panel shot-chart">
         <svg id="shot-chart-svg"></svg>
       </div>
       <div class="panel line-3">
-        <svg class = "stacked-bar", id="ShotDist"></svg>
+        <svg id="DistanceLine"></svg>
       </div>
       <div class="panel filters">
         <label class="filter-label">Player</label>
@@ -81,7 +76,7 @@
         </button>
       </div>
       <div class="panel line-2">
-        <svg class = "line-chart", id="AvgLine"></svg>
+        <svg id="AssistLine"></svg>
       </div>
       <div class="panel about">Built by <a class = "website-link" href = https://ksuelflo.github.io> Kyle Suelflow</a>
         <br>Data last updated February 10th, 2026
