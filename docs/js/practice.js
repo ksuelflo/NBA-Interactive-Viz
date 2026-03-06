@@ -280,6 +280,9 @@ async function update(selections) {
       img.alt = "No image available";
     }
 
+    const teamPos = [profile[0].team, profile[0].position].filter(Boolean).join(" · ");
+    d3.select("#tooltip-team-pos").text(teamPos);
+
     const posGroup = profile[0].position;
     console.log("profile[0]:", profile[0]);
     console.log("posGroup:", posGroup);
@@ -1162,6 +1165,12 @@ function clearTooltip() {
   d3.select("#tooltip-league").text("");
   d3.select("#tooltip-diff").text("");
   d3.select("#tooltip-position").text("");
+}
+
+function clearPlayerInfo() {
+  d3.select("#tooltip-player").text("");
+  d3.select("#tooltip-team-pos").text("");
+  document.getElementById("tooltip-player-photo").src = "";
 }
 
 

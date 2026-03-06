@@ -199,6 +199,13 @@ button:hover {
   line-height: 1.2;
 }
 
+/* Team · Position below name */
+.tooltip-team-pos {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-bottom: 0.1rem;
+}
+
 /* Region below name */
 .tooltip-region {
   font-size: 0.95rem;

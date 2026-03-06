@@ -220,12 +220,21 @@ const svgShotChart = d3
 
 svgShotChart.append("text")
   .attr("x", 0)
-  .attr("y", -1)
+  .attr("y", -2.5)
   .attr("text-anchor", "middle")
   .attr("fill", "white")
   .style("font-size", "2px")
   .style("font-weight", "600")
   .text("Where do Players Shoot From?");
+
+svgShotChart.append("text")
+  .attr("x", 0)
+  .attr("y", -1)
+  .attr("text-anchor", "middle")
+  .attr("fill", "white")
+  .style("font-size", "1.4px")
+  .style("opacity", "0.6")
+  .text("Density values are relative to the player's shot profile only");
 
 const g = svgShotChart.append("g");
 
@@ -433,6 +442,7 @@ function updateSimilarPlayers(data) {
 
 function clearSimilarPlayers() {
   d3.select("#similar-player-name").text("Select a player");
+  d3.select("#similar-hero-team-pos").text("");
   d3.select("#similar-player-photo").attr("src", "").style("display", "none");
   d3.select("#similar-players-row").selectAll(".similar-card").remove();
 }
@@ -784,6 +794,16 @@ async function update(selections){
     drawCourt();
 
     if (selections.player && selections.player !== "All" && selections.player !== "") {
+      // Player profile (team + position)
+      try {
+        const profile = await fetchPlayerImage(selections.player);
+        const teamPos = [profile[0].team, profile[0].position].filter(Boolean).join(" · ");
+        d3.select("#similar-hero-team-pos").text(teamPos);
+      } catch(err) {
+        console.error("Profile fetch failed:", err);
+        d3.select("#similar-hero-team-pos").text("");
+      }
+
       // Similar players
       try {
         const similarData = await fetchSimilarPlayers(selections.player, selections.season);
@@ -898,13 +918,11 @@ function getSelections(){
   var selectedTeam = d3.select("#team-select").property("value")
   var selectedQuarter = d3.select("#quarter-select").property("value")
   var selectedSeason = d3.select("#season-select").property("value")
-  var selectedDefendingTeam = d3.select("#defending_team-select").property("value")
   var selections = {
     season: selectedSeason,
     player: selectedPlayer,
     team: selectedTeam,
     quarter: selectedQuarter,
-    defending_team: selectedDefendingTeam
   }
   return(selections);
 }
@@ -919,13 +937,12 @@ const filters = {
     player: "All",
     team: "All",
     quarter: "All",
-    defending_team: "All"
 };
 
 let playerUniverse = [];
 
 
-["season", "player", "team", "quarter", "defending_team"].forEach(key => {
+["season", "player", "team", "quarter"].forEach(key => {
   registerFilter(key);
 });
 
