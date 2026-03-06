@@ -73,18 +73,9 @@ async function fetchPlayerImage(player) {
 }
 
 async function fetchPositionRegionStats(position) {
-  const res = await fetch(`${API_BASE}/position/regions?position=${encodeURIComponent(position)}&season=All`);
+  const res = await fetch(`${API_BASE}/position/regions?position=${encodeURIComponent(position)}`);
   if (!res.ok) throw new Error("Failed to fetch position region stats");
   return await res.json();
-}
-
-function getPositionGroup(pos) {
-  if (!pos) return null;
-  const p = pos.toUpperCase();
-  if (p === "PG" || p === "SG" || p === "G" || p.includes("GUARD")) return "Guard";
-  if (p === "SF" || p === "PF" || p === "F" || p.includes("FORWARD")) return "Forward";
-  if (p === "C" || p.includes("CENTER")) return "Center";
-  return pos;
 }
 
 
@@ -289,10 +280,13 @@ async function update(selections) {
       img.alt = "No image available";
     }
 
-    const posGroup = getPositionGroup(profile[0].position);
+    const posGroup = profile[0].position;
+    console.log("profile[0]:", profile[0]);
+    console.log("posGroup:", posGroup);
     if (posGroup) {
       try {
         positionRegionData = await fetchPositionRegionStats(posGroup);
+        console.log("positionRegionData:", positionRegionData);
       } catch (err) {
         console.error("Position region fetch failed:", err);
         positionRegionData = null;
@@ -718,19 +712,19 @@ function drawCourt() {
   regionDispatcher.on("regionHover.shotchart", function(region) {
 
     d3.selectAll(".region")
-      .attr("opacity", d => d.region === region ? 1 : 0.3)
-      .classed("highlighted", d => d.region === region);
+      .attr("opacity", d => d && d.region === region ? 1 : 0.3)
+      .classed("highlighted", d => d && d.region === region);
 
     // Now raise ONLY the selected one
     d3.selectAll(".region")
-      .filter(d => d.region === region);
+      .filter(d => d && d.region === region);
       // .raise();
   });
 
 
-  regionDispatcher.on("regionOut.shotchart", function(region) {
+  regionDispatcher.on("regionOut.shotchart", function() {
     d3.selectAll(".region")
-      .attr("opacity", d => d.region === region ? 1 : 1)
+      .attr("opacity", 1)
       .classed("highlighted", false);
   });
 }
@@ -1076,13 +1070,11 @@ function getSelections(){
   var selectedTeam = d3.select("#team-select").property("value")
   var selectedQuarter = d3.select("#quarter-select").property("value")
   var selectedSeason = d3.select("#season-select").property("value")
-  var selectedDefendingTeam = d3.select("#defending_team-select").property("value")
   var selections = {
     season: selectedSeason,
     player: selectedPlayer,
     team: selectedTeam,
     quarter: selectedQuarter,
-    defending_team: selectedDefendingTeam
   }
   return(selections);
 }
@@ -1107,13 +1099,12 @@ const filters = {
     player: "All",
     team: "All",
     quarter: "All",
-    defending_team: "All"
 };
 
 let playerUniverse = [];
 
 
-["season", "player", "team", "quarter", "defending_team"].forEach(key => {
+["season", "player", "team", "quarter"].forEach(key => {
   registerFilter(key);
 });
 
