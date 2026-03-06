@@ -779,7 +779,7 @@ function drawRegionLineChart(data) {
   const width = bounds.width;
   const height = bounds.height;
 
-  const margin = { top: 24, right: 20, bottom: 20, left: 40 };
+  const margin = { top: 24, right: 20, bottom: 30, left: 40 };
 
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
@@ -826,7 +826,12 @@ function drawRegionLineChart(data) {
   // ---- Axes ----
   g.append("g")
     .attr("transform", `translate(0,${innerHeight})`)
-    .call(d3.axisBottom(x));
+    .call(d3.axisBottom(x))
+    .selectAll("text")
+    .attr("transform", "rotate(45)")
+    .attr("text-anchor", "start")
+    .attr("dx", "0.4em")
+    .attr("dy", "0.4em");
 
 
   g.append("g")
@@ -902,7 +907,7 @@ function drawShotDistributionChart(data) {
   const width = bounds.width;
   const height = bounds.height;
 
-  const margin = { top: 24, right: 20, bottom: 20, left: 40 };
+  const margin = { top: 24, right: 20, bottom: 30, left: 40 };
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
@@ -973,7 +978,12 @@ function drawShotDistributionChart(data) {
   // --- Axes ---
   g.append("g")
     .attr("transform", `translate(0,${innerHeight})`)
-    .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+    .call(d3.axisBottom(x).tickFormat(d3.format("d")))
+    .selectAll("text")
+    .attr("transform", "rotate(45)")
+    .attr("text-anchor", "start")
+    .attr("dx", "0.4em")
+    .attr("dy", "0.4em");
 
   g.append("g")
     .call(d3.axisLeft(y).tickFormat(d3.format(".0%")));
