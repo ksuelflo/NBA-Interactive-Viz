@@ -61,7 +61,6 @@ async function fetchAssistPct(player) {
   if (!res.ok) throw new Error("Failed to fetch assist pct");
   return await res.json();
 }
-
 // AVG DISTANCE
 
 async function fetchAvgDistance(player) {

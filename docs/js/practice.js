@@ -72,6 +72,21 @@ async function fetchPlayerImage(player) {
   return await res.json();
 }
 
+async function fetchPositionRegionStats(position) {
+  const res = await fetch(`${API_BASE}/position/regions?position=${encodeURIComponent(position)}&season=All`);
+  if (!res.ok) throw new Error("Failed to fetch position region stats");
+  return await res.json();
+}
+
+function getPositionGroup(pos) {
+  if (!pos) return null;
+  const p = pos.toUpperCase();
+  if (p === "PG" || p === "SG" || p === "G" || p.includes("GUARD")) return "Guard";
+  if (p === "SF" || p === "PF" || p === "F" || p.includes("FORWARD")) return "Forward";
+  if (p === "C" || p.includes("CENTER")) return "Center";
+  return pos;
+}
+
 
 // FILTERS --------------------------------------------------
 
@@ -259,7 +274,7 @@ async function update(selections) {
     );
   }
 
-  // player image update:
+  // player image + position update:
   try {
     const profile = await fetchPlayerImage(selections.player);
 
@@ -274,8 +289,21 @@ async function update(selections) {
       img.alt = "No image available";
     }
 
+    const posGroup = getPositionGroup(profile[0].position);
+    if (posGroup) {
+      try {
+        positionRegionData = await fetchPositionRegionStats(posGroup);
+      } catch (err) {
+        console.error("Position region fetch failed:", err);
+        positionRegionData = null;
+      }
+    } else {
+      positionRegionData = null;
+    }
+
   } catch (err) {
     console.error("Image fetch failed:", err);
+    positionRegionData = null;
   }
 
   const merged = mergeLeagueAndPlayer(league_avg, data);
@@ -837,10 +865,12 @@ function drawRegionLineChart(data) {
       return line(sorted);
     })
     .on("mouseover", function(event, d) {
+      if (lockedRegion) return;
       const region = d[0];
       regionDispatcher.call("regionHover", null, region);
     })
     .on("mouseout", function() {
+      if (lockedRegion) return;
       regionDispatcher.call("regionOut");
     });
 
@@ -1117,10 +1147,18 @@ function updateTooltip(d) {
         ? "NA"
         : pct(d.diff_pct)
     );
+
+  if (positionRegionData) {
+    const posRow = positionRegionData.find(r => r.region === d.region);
+    d3.select("#tooltip-position").text(posRow ? pct(posRow.fg_pct) : "N/A");
+  } else {
+    d3.select("#tooltip-position").text("N/A");
+  }
 }
 
 
 let lockedRegion = null;
+let positionRegionData = null;
 
 
 
@@ -1132,6 +1170,7 @@ function clearTooltip() {
   d3.select("#tooltip-fg").text("");
   d3.select("#tooltip-league").text("");
   d3.select("#tooltip-diff").text("");
+  d3.select("#tooltip-position").text("");
 }
 
 
@@ -1139,6 +1178,8 @@ function clearTooltip() {
 d3.select('body').on('click', () => {
   lockedRegion = null;
   clearTooltip();
+  svgShotChart.selectAll(".region").classed("locked", false);
+  regionDispatcher.call("regionOut");
 });
 
 
