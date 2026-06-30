@@ -1,0 +1,283 @@
+---
+title: "Tanking"
+format: html
+---
+
+# Roadmap
+
+- I want to write an article about the tanking problem in the NBA, and show how it is affecting how each game is played after the trade deadline
+- Some metrics/ideas I want to explore
+  - Prevalence of blowouts (winning by 20+ points) before/after trade deadline
+    - Average margin of victory calendar view
+    - OR # of blowouts calendar view
+  - Diverging winning percentages of playoff and non-playoff teams
+  - Dramatic increase in minutes for "random players"
+  - Star players playing less minutes, or less games on tanking teams.
+  
+## Calendar data wrangling
+
+```{r}
+library(tidyverse)
+library(hoopR)
+```
+
+```{r}
+seasons <- 2002:2026
+dat <- load_nba_schedule(seasons = seasons)
+dat_calendar <- dat%>%
+  filter(season_type == 2)%>%
+  mutate(mov = abs(home_score-away_score),
+         blowout = if_else(mov >= 20, T, F),
+         date = as_date(ymd_hm(date)))%>%
+  group_by(date)%>%
+  summarize(games_played = n(),
+            avg_mov = mean(mov),
+            blowouts = sum(blowout),
+            season = min(season))
+
+
+  
+```
+
+## Slope chart win% wrangling
+
+### Helper function
+
+```{r}
+library(jsonlite)
+
+extract_record <- function(x, record_type = "total") {
+  x |>
+    # Make it valid JSON
+    gsub("'", '"', x = _) |>
+    gsub("None", "null", x = _) |>
+    gsub("\\}\n \\{", "},{", x = _) |>
+    fromJSON() |>
+    subset(type == record_type, select = summary) |>
+    pull(summary)
+}
+```
+
+### Main wrangling
+
+```{r}
+seasons <- 2002:2026
+container <- vector("list", length = length(seasons))
+for (i in seq_along(seasons)){
+  container[[i]] <- espn_nba_standings(seasons[i])%>%
+    mutate(year = seasons[i])
+}
+playoffs <- bind_rows(container)
+
+playoffs <- playoffs%>%
+  filter(year != 2020)%>%
+  mutate(playoff_team = if_else(clincher == 4 | is.na(clincher), F, T))
+
+playoffs_filtered <- playoffs%>%
+  select(team, playoff_team, year)
+```
+
+
+```{r}
+seasons <- 2021:2026
+dat <- load_nba_schedule(seasons = seasons)
+
+dat_cleaned <- dat%>%
+  filter(status_type_name == "STATUS_FINAL",
+         type_id == 1)%>%
+   mutate(home_record = sapply(home_records, extract_record, record_type = "total"),
+          away_record = sapply(away_records, extract_record, record_type = "total"),
+          date = as_date(ymd_hm(start_date))) %>%
+  separate(home_record, into = c("home_wins", "home_losses"), sep = "-", convert = TRUE)%>%
+  separate(away_record, into = c("away_wins", "away_losses"), sep = "-", convert = TRUE)%>%
+  select(date, home_display_name, away_display_name, home_wins, home_losses, away_wins, away_losses, season)%>%
+  pivot_longer(
+    cols = c(home_display_name, away_display_name),
+    names_to  = "location",
+    values_to = "team") %>%
+  mutate(
+    wins   = if_else(location == "home_display_name", home_wins,   away_wins),
+    losses = if_else(location == "home_display_name", home_losses, away_losses)) %>%
+  select(date, team, wins, losses, season)%>%
+    arrange(team, date) %>%
+  group_by(team, date, season) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  complete(team, date) %>%
+  group_by(team) %>%
+  fill(wins, losses, .direction = "down") %>%
+  ungroup() %>%
+  mutate(win_pct = wins / (wins + losses))
+
+final_dat <- dat_cleaned%>%
+  left_join(playoffs_filtered, by = join_by(team == team, season == year))
+```
+
+
+```{r}
+seasons_2 <- c(2002:2019, 2021:2026)
+dat_2 <- load_nba_schedule(seasons = seasons_2)
+dat_2%>%
+  filter(str_detect(home_display_name, "All-Stars"))
+dat_3 <- dat_2%>%
+  left_join(playoffs_filtered, by = join_by(home_display_name == team, season == year))%>%
+  mutate(home_playoff_team = playoff_team)%>%
+  select(-playoff_team)%>%
+  left_join(playoffs_filtered, by = join_by(away_display_name == team, season == year))%>%
+  mutate(away_playoff_team = playoff_team)%>%
+  select(-playoff_team)%>%
+  filter(status_type_name == "STATUS_FINAL",
+         type_id == 1, 
+         season_type == 2,
+         home_id <=30)%>%
+  mutate(date = as_date(ymd_hm(start_date)))%>%
+  select(date, season, home_display_name, away_display_name, home_playoff_team, away_playoff_team, home_winner)%>%
+  mutate(month = month(date),
+         playoff_vs_non = if_else((home_playoff_team & !away_playoff_team) | (!home_playoff_team & away_playoff_team) , T, F),
+         non_playoff_win = playoff_vs_non & ( (home_winner & !home_playoff_team ) | (!home_winner & home_playoff_team) ))%>%
+  group_by(month, season)%>%
+  summarize(total_playoff_non = sum(playoff_vs_non),
+            wins_non = sum(non_playoff_win),
+            win_pct = wins_non/total_playoff_non)%>%
+  filter(total_playoff_non > 20)
+  
+dat_3%>%
+  filter(season == 2026)%>%
+  ggplot(aes(x = month, y = win_pct))+
+  geom_col()+
+  theme_minimal()
+```
+
+
+```{r}
+library(slider)
+final_dat_2 <- final_dat%>%
+  mutate(games_played = wins + losses)%>%
+  filter(games_played != 0,
+         !is.na(games_played))%>%
+  group_by(games_played, team, season)%>%
+  summarize(win_pct = max(win_pct),
+            playoff_team = max(playoff_team),
+            wins = max(wins), losses = max(losses))%>%
+  ungroup()%>%
+  filter(!is.na(season))%>%
+  group_by(team, season)%>%
+  mutate(game_result = case_when(
+      wins > lag(wins) ~ 1,                     # win
+      TRUE ~ 0                                  # loss
+    ),
+    win_pct_10 = slide_dbl(
+      game_result,
+      mean,
+      .before = 9,   # look back 10 games (9 before + current)
+      .complete = TRUE,  # return NA until window is full
+      na.rm = TRUE
+    ))
+
+final_dat_2%>%
+  filter(!is.na(win_pct_10))%>%
+  group_by(games_played, playoff_team, season)%>%
+  summarize(avg_10 = mean(win_pct_10))%>%
+  filter(season == 2025)%>%
+  ggplot(aes(x = games_played, y = avg_10, group = playoff_team, color = playoff_team))+
+  geom_line()+
+  geom_vline(xintercept = 55, linetype = "dotted")+
+  theme_minimal()
+
+final_dat_3 <- final_dat_2%>%
+  filter(!is.na(win_pct_10))%>%
+  group_by(games_played, playoff_team, season)%>%
+  summarize(avg_10 = mean(win_pct_10))%>%
+  filter(season == 2026)
+```
+
+
+## Player minute wrangling
+
+```{r}
+
+seasons <- 2021:2026
+trade_deadlines <- c(
+  "2021-03-25",  # 2020-21 season
+  "2022-02-10",  # 2021-22 season
+  "2023-02-09",  # 2022-23 season
+  "2024-02-08",  # 2023-24 season
+  "2025-02-06",  # 2024-25 season
+  "2026-02-05"   # 2025-26 season
+)
+
+deadline_df <- data.frame(season = seasons, deadline_date = trade_deadlines)
+
+df <- load_nba_player_box(seasons = seasons)
+playoff_joined <- df%>%
+  filter(season_type == 2)%>%
+  left_join(playoffs_filtered, join_by(team_display_name == team, season == year))
+  
+pre_deadline_stats <- playoff_joined%>%
+  left_join(deadline_df, join_by(season == season))%>%
+  filter(game_date < deadline_date)%>%
+  mutate(minutes = if_else(is.na(minutes), 0, minutes))%>%
+  group_by(athlete_display_name, season)%>%
+  summarize(pre_deadline_min = mean(minutes))
+
+joined_df <- playoff_joined%>%
+  left_join(pre_deadline_stats, by = join_by(athlete_display_name == athlete_display_name,
+                                             season == season))%>%
+  mutate(pre_deadline_min = if_else(is.na(pre_deadline_min), 0, pre_deadline_min))%>%
+  mutate(is_minutes_outlier = if_else(minutes > 20 & pre_deadline_min < 5, T, F))
+
+summed_date <- joined_df%>%
+  group_by(game_date)%>%
+  summarize(total_min_outliers = sum(is_minutes_outlier, na.rm = T))
+
+summed_team <- joined_df%>%
+  group_by(team_display_name, season)%>%
+  summarize(total_min_outliers = sum(is_minutes_outlier, na.rm = T))
+
+
+
+summed_date%>%
+  ggplot(aes(x = game_date, y = total_min_outliers))+
+  geom_line()+
+  theme_minimal()
+
+container <- vector("list", length = length(seasons))
+for (i in seq_along(seasons)){
+  container[[i]] <- espn_nba_standings(seasons[i])%>%
+    mutate(year = seasons[i])%>%
+    select(year, team, wins)
+}
+standings <- bind_rows(container)
+
+teams <- espn_nba_teams()%>%
+  mutate(logo2 = logos_href_9)%>%
+  select(display_name, logo, logo2)
+  
+
+xy <- summed_team%>%
+  left_join(playoffs_filtered, by = join_by(team_display_name == team,
+                                            season == year))%>%
+  left_join(standings, by = join_by(season == year,
+            team_display_name == team))%>%
+  arrange(season, wins)%>%
+  filter(!is.na(playoff_team))%>%
+  add_column(rank = rep(30:1, 6))%>%
+  left_join(teams, by = join_by(team_display_name == display_name))
+```
+
+
+## Write to csv
+
+```{r}
+write_csv(summed_team, "minutes_team.csv")
+write_csv(summed_date, "minutes_date.csv")
+write_csv(final_dat, "win_pct_slope_2026.csv")
+write_csv(dat_calendar, "calendar_alltime.csv")
+write_csv(final_dat_3, "10_day_avg_win_pct.csv")
+write_csv(dat_3, "playoff_vs_non.csv")
+write_csv(xy, "minutes_logo.csv")
+```
+
+
+
+
