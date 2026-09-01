@@ -948,4 +948,11 @@ let playerUniverse = [];
 
 (async function init() {
   await recomputeFilters();
+
+  // Default selection on load: LeBron James, all seasons/teams/quarters
+  filters.player = "Jarrett Allen";
+  d3.select("#player-input").property("value", "Jarrett Allen");
+  await recomputeFilters(); // re-scope season/team/quarter options to LeBron's data
+
+  await update(getSelections());
 })();
