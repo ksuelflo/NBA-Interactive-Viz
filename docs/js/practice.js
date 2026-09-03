@@ -1,82 +1,18 @@
 // API CALLS---------------------------------------------
+// Queries run against local Parquet files via DuckDB-WASM (see db.js /
+// queries.js) instead of the old Render-hosted plumber API.
 
-const API_BASE = "https://nba-api-mjlt.onrender.com";
-
-// FILTERS
-
-async function fetchFilterUniverse(filters) {
-  const params = new URLSearchParams(filters);
-  const res = await fetch(`${API_BASE}/filters/universe?${params}`);
-
-  if (!res.ok) {
-    throw new Error("Failed to fetch filter universe");
-  }
-  return await res.json();
-}
-
-// Region Stats
-
-async function fetchLeagueRegionStats(season) {
-  const res = await fetch(`${API_BASE}/league/regions?season=${season}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch league region stats");
-  }
-  return await res.json();
-}
-
-async function fetchTeamRegionStats(season, team, period) {
-  const res = await fetch(`${API_BASE}/team/regions?season=${season}&periodr=${period}&team_name=${team}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch team averages by region");
-  }
-  return await res.json();
-}
-
-async function fetchPlayerRegionStats(season, player, period) {
-  const res = await fetch(`${API_BASE}/player/regions?season=${season}&periodr=${period}&player_name=${player}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch team averages by region");
-  }
-  return await res.json();
-}
-
-async function fetchTeamRegionStatsLineChart(team) {
-  const res = await fetch(`${API_BASE}/team/regions/yearly?team_name=${team}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch team yearly averages by region");
-  }
-  return await res.json();
-}
-
-async function fetchPlayerRegionStatsLineChart(player) {
-  const res = await fetch(`${API_BASE}/player/regions/yearly?player_name=${player}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch player yearly averages by region");
-  }
-  return await res.json();
-}
-
-async function fetchStackedBar(player) {
-  const res = await fetch(`${API_BASE}/player/shot-distribution/yearly?player_name=${player}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch player shot-distribution yearly");
-  }
-  return await res.json();
-}
-
-async function fetchPlayerImage(player) {
-  const res = await fetch(`${API_BASE}/player/profile?player_name=${player}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch player image");
-  }
-  return await res.json();
-}
-
-async function fetchPositionRegionStats(position) {
-  const res = await fetch(`${API_BASE}/position/regions?position=${encodeURIComponent(position)}`);
-  if (!res.ok) throw new Error("Failed to fetch position region stats");
-  return await res.json();
-}
+import {
+  fetchFilterUniverse,
+  fetchPlayerImage,
+  fetchLeagueRegionStats,
+  fetchPositionRegionStats,
+  fetchTeamRegionStats,
+  fetchPlayerRegionStats,
+  fetchTeamRegionStatsLineChart,
+  fetchPlayerRegionStatsLineChart,
+  fetchStackedBar,
+} from "./queries.js";
 
 
 // FILTERS --------------------------------------------------
@@ -109,10 +45,6 @@ async function recomputeFilters(changedKey = null) {
     updateSelect(`#season-select`, data.seasons, filters.season);
   }
 
-  if (changedKey !== "player") {
-    updateSelect(`#player-select`, data.players, filters.player);
-  }
-
   if (changedKey !== "team") {
     updateSelect(`#team-select`, data.teams, filters.team);
   }
@@ -120,7 +52,14 @@ async function recomputeFilters(changedKey = null) {
   if (changedKey !== "quarter") {
     updateSelect(`#quarter-select`, data.quarters, filters.quarter);
   }
-  setupPlayerAutocomplete(data.players, filters);
+
+  // `data.players` is filtered by the currently selected player, so once a
+  // player is chosen it collapses to just that one name. Refetch the roster
+  // with the player filter cleared so the search box can still find anyone.
+  if (filters.player !== "All") {
+    const rosterData = await fetchFilterUniverse({ ...filters, player: "All" });
+    playerUniverse = rosterData.players;
+  }
 }
 
 function registerFilter(key) {
@@ -142,13 +81,9 @@ function matchesPlayer(player, query) {
   return parts.some(p => p.startsWith(q));
 }
 
-function setupPlayerAutocomplete(players, filters) {
+function setupPlayerAutocomplete(filters) {
   const input = d3.select(`#player-input`);
   const results = d3.select(`#player-results`);
-
-  // prevent multiple listeners
-  if (input.attr("data-autocomplete-initialized")) return;
-  input.attr("data-autocomplete-initialized", true);
 
   // helper: match query to first or last name
   function matchesPlayer(name, query) {
@@ -166,8 +101,9 @@ function setupPlayerAutocomplete(players, filters) {
       return;
     }
 
-    // filter players
-    const matches = players.filter(p => matchesPlayer(p, query)).slice(0, 15);
+    // read the live player list so this keeps working even if it was
+    // empty when the listener was first attached (e.g. API still waking up)
+    const matches = playerUniverse.filter(p => matchesPlayer(p, query)).slice(0, 15);
 
     if (matches.length === 0) {
       results.selectAll("*").remove();
@@ -1116,23 +1052,35 @@ const filters = {
 
 let playerUniverse = [];
 
+// Attach the search box listener immediately, independent of any network
+// call. It reads `playerUniverse` live, so it starts working as soon as the
+// filter data arrives even if that first fetch is slow (e.g. the API is
+// waking up from a Render free-tier cold start) or briefly fails.
+setupPlayerAutocomplete(filters);
 
 ["season", "player", "team", "quarter"].forEach(key => {
   registerFilter(key);
 });
 
 (async function init() {
-  await recomputeFilters();
+  d3.select("#tooltip-player").text("Loading Jarrett Allen...");
 
-  // Default selection on load: LeBron James, all seasons/teams/quarters
-  filters.player = "Jarrett Allen";
-  d3.select("#player-input").property("value", "Jarrett Allen");
-  await recomputeFilters(); // re-scope season/team/quarter options to LeBron's data
+  try {
+    await recomputeFilters();
 
-  const selections = getSelections();
-  const data = await fetchPlayerRegionStatsLineChart(selections.player);
-  drawRegionLineChart(data);
-  await update(selections);
+    // Default selection on load: Jarrett Allen, all seasons/teams/quarters
+    filters.player = "Jarrett Allen";
+    d3.select("#player-input").property("value", "Jarrett Allen");
+    await recomputeFilters(); // re-scope season/team/quarter options to Jarrett Allen's data
+
+    const selections = getSelections();
+    const data = await fetchPlayerRegionStatsLineChart(selections.player);
+    drawRegionLineChart(data);
+    await update(selections);
+  } catch (err) {
+    console.error("Initial load failed:", err);
+    d3.select("#tooltip-player").text("Couldn't load data — click Clear Filters to retry");
+  }
 })();
 
 //TOOLTIP----------------------------------------------------------

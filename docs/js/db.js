@@ -11,14 +11,13 @@ import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0
 
 let connPromise = null;
 
-// Adjust these to wherever your static server actually exposes your data
-// folder (confirmed to be /docs/data/ for this project — adjust if that
-// changes). Resolved to fully-qualified absolute URLs below — the worker
-// executes from a blob: context (see the Worker workaround above), and a
-// root-relative path doesn't resolve reliably against that, which is what
-// produced the earlier "Invalid URL" XHR error.
-const SHOTS_PARQUET_URL = new URL("/docs/data/shots.parquet", window.location.href).href;
-const PLAYER_PARQUET_URL = new URL("/docs/data/player.parquet", window.location.href).href;
+// Resolved relative to this module's own location (docs/js/db.js -> ../data/)
+// rather than the page URL or a root-absolute path. GitHub Pages serves the
+// `docs/` folder itself as the site root under a repo-name subpath
+// (e.g. https://user.github.io/repo-name/), so a root-absolute "/docs/data/..."
+// 404s in production even though it resolves locally — this works in both.
+const SHOTS_PARQUET_URL = new URL("../data/shots.parquet", import.meta.url).href;
+const PLAYER_PARQUET_URL = new URL("../data/player.parquet", import.meta.url).href;
 
 export async function getConnection() {
   if (connPromise) return connPromise;

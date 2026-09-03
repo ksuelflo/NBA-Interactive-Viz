@@ -1,82 +1,24 @@
 // API CALLS---------------------------------------------
+// Queries run against local Parquet files via DuckDB-WASM (see db.js /
+// queries.js / similarity.js / kde.js) instead of the old Render-hosted
+// plumber API.
 
-const API_BASE = "https://nba-api-mjlt.onrender.com";
+import {
+  fetchFilterUniverse,
+  fetchPlayerImage,
+  fetchAvgDistance,
+  fetchAssistPct,
+  fetchPointsPerShot,
+  fetchTotalAttempts,
+} from "./queries.js";
+import { fetchSimilarPlayers } from "./similarity.js";
+import { fetchPlayerDensity as fetchPlayerDensityRaw } from "./kde.js";
 
-// FILTERS
-
-async function fetchFilterUniverse(filters) {
-  const params = new URLSearchParams(filters);
-  const res = await fetch(`${API_BASE}/filters/universe?${params}`);
-
-  if (!res.ok) {
-    throw new Error("Failed to fetch filter universe");
-  }
-  return await res.json();
-}
-
-// PLAYER IMAGE
-
-async function fetchPlayerImage(player) {
-  const res = await fetch(`${API_BASE}/player/profile?player_name=${player}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch player image");
-  }
-  return await res.json();
-}
-
-// SIMILAR PLAYERS
-
-async function fetchSimilarPlayers(player, season) {
-  const res = await fetch(`${API_BASE}/player/similar?player_name=${encodeURIComponent(player)}&season=${season}`);
-  if (!res.ok) throw new Error("Failed to fetch similar players");
-  return await res.json();
-}
-
-// TOTAL ATTEMPTS
-
-async function fetchTotalAttempts(player, season, period) {
-  const params = new URLSearchParams({ player_name: player });
-  if (season && season !== "All") params.append("season", season);
-  if (period && period !== "All") params.append("period", period);
-  const res = await fetch(`${API_BASE}/player/total-attempts?${params}`);
-  if (!res.ok) throw new Error("Failed to fetch total attempts");
-  return await res.json();
-}
-
-// POINTS PER SHOT
-
-async function fetchPointsPerShot(player, season, period) {
-  const params = new URLSearchParams({ player_name: player });
-  if (season && season !== "All") params.append("season", season);
-  if (period && period !== "All") params.append("period", period);
-  const res = await fetch(`${API_BASE}/player/points-per-shot?${params}`);
-  if (!res.ok) throw new Error("Failed to fetch points per shot");
-  return await res.json();
-}
-
-// ASSIST PCT
-
-async function fetchAssistPct(player) {
-  const res = await fetch(`${API_BASE}/player/assist-pct?player_name=${encodeURIComponent(player)}`);
-  if (!res.ok) throw new Error("Failed to fetch assist pct");
-  return await res.json();
-}
-// AVG DISTANCE
-
-async function fetchAvgDistance(player) {
-  const res = await fetch(`${API_BASE}/player/avg-distance?player_name=${encodeURIComponent(player)}`);
-  if (!res.ok) throw new Error("Failed to fetch avg distance");
-  return await res.json();
-}
-
-// DENSITY
-
+// The old Render endpoint defaulted bandwidth to 5 here (kde.js's own
+// default, matching the plumber endpoint, is 2.5) — keep the wider default
+// so the heatmap's smoothing doesn't visibly change.
 async function fetchPlayerDensity(player, season, period, bandwidth = 5, resolution = .5) {
-  const res = await fetch(`${API_BASE}/player/shot-density?player_name=${player}&season=${season}&period=${period}&bandwidth=${bandwidth}&resolution=${resolution}`);
-  if (!res.ok) {
-    throw new Error("Failed to fetch player density");
-  }
-  return await res.json();
+  return fetchPlayerDensityRaw(player, season, period, bandwidth, resolution);
 }
 
 // FILTERS --------------------------------------------------
@@ -109,10 +51,6 @@ async function recomputeFilters(changedKey = null) {
     updateSelect(`#season-select`, data.seasons, filters.season);
   }
 
-  if (changedKey !== "player") {
-    updateSelect(`#player-select`, data.players, filters.player);
-  }
-
   if (changedKey !== "team") {
     updateSelect(`#team-select`, data.teams, filters.team);
   }
@@ -120,7 +58,14 @@ async function recomputeFilters(changedKey = null) {
   if (changedKey !== "quarter") {
     updateSelect(`#quarter-select`, data.quarters, filters.quarter);
   }
-  setupPlayerAutocomplete(data.players, filters);
+
+  // `data.players` is filtered by the currently selected player, so once a
+  // player is chosen it collapses to just that one name. Refetch the roster
+  // with the player filter cleared so the search box can still find anyone.
+  if (filters.player !== "All") {
+    const rosterData = await fetchFilterUniverse({ ...filters, player: "All" });
+    playerUniverse = rosterData.players;
+  }
 }
 
 function registerFilter(key) {
@@ -142,13 +87,9 @@ function matchesPlayer(player, query) {
   return parts.some(p => p.startsWith(q));
 }
 
-function setupPlayerAutocomplete(players, filters) {
+function setupPlayerAutocomplete(filters) {
   const input = d3.select(`#player-input`);
   const results = d3.select(`#player-results`);
-
-  // prevent multiple listeners
-  if (input.attr("data-autocomplete-initialized")) return;
-  input.attr("data-autocomplete-initialized", true);
 
   // helper: match query to first or last name
   function matchesPlayer(name, query) {
@@ -166,8 +107,9 @@ function setupPlayerAutocomplete(players, filters) {
       return;
     }
 
-    // filter players
-    const matches = players.filter(p => matchesPlayer(p, query)).slice(0, 15);
+    // read the live player list so this keeps working even if it was
+    // empty when the listener was first attached
+    const matches = playerUniverse.filter(p => matchesPlayer(p, query)).slice(0, 15);
 
     if (matches.length === 0) {
       results.selectAll("*").remove();
@@ -941,18 +883,29 @@ const filters = {
 
 let playerUniverse = [];
 
+// Attach the search box listener immediately, independent of any query
+// completing. It reads `playerUniverse` live, so it starts working as soon
+// as the filter data arrives.
+setupPlayerAutocomplete(filters);
 
 ["season", "player", "team", "quarter"].forEach(key => {
   registerFilter(key);
 });
 
 (async function init() {
-  await recomputeFilters();
+  d3.select("#similar-player-name").text("Loading Jarrett Allen...");
 
-  // Default selection on load: LeBron James, all seasons/teams/quarters
-  filters.player = "Jarrett Allen";
-  d3.select("#player-input").property("value", "Jarrett Allen");
-  await recomputeFilters(); // re-scope season/team/quarter options to LeBron's data
+  try {
+    await recomputeFilters();
 
-  await update(getSelections());
+    // Default selection on load: Jarrett Allen, all seasons/teams/quarters
+    filters.player = "Jarrett Allen";
+    d3.select("#player-input").property("value", "Jarrett Allen");
+    await recomputeFilters(); // re-scope season/team/quarter options to Jarrett Allen's data
+
+    await update(getSelections());
+  } catch (err) {
+    console.error("Initial load failed:", err);
+    d3.select("#similar-player-name").text("Couldn't load data — click Clear Filters to retry");
+  }
 })();

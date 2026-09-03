@@ -10,7 +10,7 @@ let cachePromise = null;
 
 async function loadZoneCache() {
   if (cachePromise) return cachePromise;
-  cachePromise = fetch(new URL("/docs/data/zone-vectors.json", window.location.href).href).then((res) => {
+  cachePromise = fetch(new URL("../data/zone-vectors.json", import.meta.url).href).then((res) => {
     if (!res.ok) throw new Error("Failed to load zone-vectors.json");
     return res.json();
   });
